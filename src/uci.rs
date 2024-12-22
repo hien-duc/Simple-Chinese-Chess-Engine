@@ -37,14 +37,14 @@ impl UCIEngine {
                             if tokens.len() > 9 && tokens[8] == "moves" {
                                 println!("Applying moves: {:?}", &tokens[9..]);
                                 for move_str in tokens[9..].iter() {
-                                    let from = (
-                                        (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize,
-                                        (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize,
-                                    );
-                                    let to = (
-                                        (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize,
-                                        (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize,
-                                    );
+                                    // Parse UCI coordinates (a-i for files, 0-9 for ranks)
+                                    let from_file = (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize;
+                                    let from_rank = 9 - (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize;  // Flip rank
+                                    let to_file = (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize;
+                                    let to_rank = 9 - (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize;    // Flip rank
+
+                                    let from = (from_rank, from_file);
+                                    let to = (to_rank, to_file);
                                     self.board.make_move(from, to);
                                 }
                             }
@@ -64,14 +64,14 @@ impl UCIEngine {
                     println!("Applying moves: {:?}", &tokens[3..]);
                     // starting with moves if haved
                     for move_str in tokens[3..].iter() {
-                        let from = (
-                            (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize,
-                            (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize,
-                        );
-                        let to = (
-                            (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize,
-                            (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize,
-                        );
+                        // Parse UCI coordinates (a-i for files, 0-9 for ranks)
+                        let from_file = (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize;
+                        let from_rank = (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize;  // Don't flip for initial position
+                        let to_file = (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize;
+                        let to_rank = (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize;    // Don't flip for initial position
+
+                        let from = (from_rank, from_file);
+                        let to = (to_rank, to_file);
                         if !self.board.make_move(from, to) {
                             println!("Error: Invalid move {}", move_str);
                             break;

@@ -45,7 +45,7 @@ pub fn evaluate_position(board: &Board) -> i32 {
                     Piece::General => 6000,
                 };
 
-                // adjust value based on piece color
+                // Score is always from Red's perspective
                 if color == Color::Black {
                     piece_value = -piece_value;
                 }
@@ -55,10 +55,6 @@ pub fn evaluate_position(board: &Board) -> i32 {
         }
     }
 
-    // negate the score for black turn
-    if !board.red_to_move {
-        -score
-    } else {
-        score
-    }
+    // Always return score from Red's perspective
+    score
 }

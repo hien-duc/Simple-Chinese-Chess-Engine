@@ -7,6 +7,7 @@ use crate::moves::{generate_legal_moves, Move};
 const INFINITY: i32 = 50000;
 const MATE_SCORE: i32 = 49000;
 const MAX_DEPTH: i32 = 64;
+const MAX_PLY: usize = 64;
 
 // Piece values for MVV-LVA
 const MVV_LVA_SCORES: [[i32; 7]; 7] = [
@@ -55,7 +56,7 @@ impl SearchInfo {
             start_time: Instant::now(),
             time_limit,
             history_table: [[0; 90]; 90],
-            killer_moves: vec![KillerMoves { moves: [None, None] }; MAX_DEPTH as usize],
+            killer_moves: vec![KillerMoves { moves: [None, None] }; MAX_PLY],
             tt: HashMap::new(),
         }
     }
@@ -65,7 +66,7 @@ impl SearchInfo {
     }
 
     fn update_killer_move(&mut self, mv: &Move, ply: usize) {
-        if self.killer_moves[ply].moves[0].as_ref() != Some(mv) {
+        if ply < MAX_PLY && self.killer_moves[ply].moves[0].as_ref() != Some(mv) {
             self.killer_moves[ply].moves[1] = self.killer_moves[ply].moves[0].clone();
             self.killer_moves[ply].moves[0] = Some(mv.clone());
         }
@@ -103,17 +104,24 @@ fn iterative_deepening(board: &Board, info: &mut SearchInfo) -> Option<Move> {
 fn negamax_root(board: &Board, depth: i32, info: &mut SearchInfo) -> (i32, Option<Move>) {
     let mut best_move = None;
     let mut best_score = -INFINITY;
+    let mut alpha = -INFINITY;
+    let beta = INFINITY;
     let hash = compute_hash(board);
     
     if let Some(tt_entry) = info.tt.get(&hash) {
         if tt_entry.depth >= depth {
             if tt_entry.node_type == NodeType::Exact {
-                return (tt_entry.score, tt_entry.best_move.clone());
+                let score = if board.red_to_move { tt_entry.score } else { -tt_entry.score };
+                return (score, tt_entry.best_move.clone());
             }
         }
     }
 
     let mut moves = generate_legal_moves(board);
+    if moves.is_empty() {
+        return (-MATE_SCORE, None);
+    }
+    
     sort_moves(board, &mut moves, info, 0, None);
 
     for mv in moves {
@@ -122,11 +130,12 @@ fn negamax_root(board: &Board, depth: i32, info: &mut SearchInfo) -> (i32, Optio
             continue;
         }
         
-        let score = -negamax(&new_board, depth - 1, -INFINITY, -best_score, info, 1);
+        let score = -negamax(&new_board, depth - 1, -beta, -alpha, info, 1);
         
         if score > best_score {
             best_score = score;
             best_move = Some(mv.clone());
+            alpha = score;
         }
 
         if info.should_stop() {
@@ -134,17 +143,26 @@ fn negamax_root(board: &Board, depth: i32, info: &mut SearchInfo) -> (i32, Optio
         }
     }
 
+    // Store score in TT from Red's perspective
+    let tt_score = if board.red_to_move { best_score } else { -best_score };
     info.tt.insert(hash, TTEntry {
         depth,
-        score: best_score,
+        score: tt_score,
         node_type: NodeType::Exact,
         best_move: best_move.clone(),
     });
 
+    // Return score from side-to-move perspective
     (best_score, best_move)
 }
 
 fn negamax(board: &Board, depth: i32, mut alpha: i32, mut beta: i32, info: &mut SearchInfo, ply: usize) -> i32 {
+    // Early return if we've exceeded maximum ply
+    if ply >= MAX_PLY {
+        let eval = evaluate_position(board);
+        return if board.red_to_move { eval } else { -eval };
+    }
+
     info.nodes += 1;
 
     if info.should_stop() {
@@ -155,13 +173,14 @@ fn negamax(board: &Board, depth: i32, mut alpha: i32, mut beta: i32, info: &mut 
 
     if let Some(tt_entry) = info.tt.get(&hash) {
         if tt_entry.depth >= depth {
+            let score = if board.red_to_move { tt_entry.score } else { -tt_entry.score };
             match tt_entry.node_type {
-                NodeType::Exact => return tt_entry.score,
-                NodeType::LowerBound => alpha = alpha.max(tt_entry.score),
-                NodeType::UpperBound => beta = beta.min(tt_entry.score),
+                NodeType::Exact => return score,
+                NodeType::LowerBound => alpha = alpha.max(score),
+                NodeType::UpperBound => beta = beta.min(score),
             }
             if alpha >= beta {
-                return tt_entry.score;
+                return score;
             }
         }
     }
@@ -169,62 +188,56 @@ fn negamax(board: &Board, depth: i32, mut alpha: i32, mut beta: i32, info: &mut 
     let is_in_check = board.is_in_check(if board.red_to_move { Color::Red } else { Color::Black });
     let depth = if is_in_check { depth + 1 } else { depth };
 
-    if depth == 0 {
-        return quiescence_search(board, alpha, beta, info);
+    if depth <= 0 {
+        let eval = quiescence_search(board, alpha, beta, info);
+        return if board.red_to_move { eval } else { -eval };
     }
 
     let mut moves = generate_legal_moves(board);
     if moves.is_empty() {
-        return -MATE_SCORE + ply as i32;
+        if is_in_check {
+            return -MATE_SCORE + ply as i32;  // Checkmate
+        } else {
+            return 0;  // Stalemate
+        }
     }
 
     let tt_move = info.tt.get(&hash).and_then(|entry| entry.best_move.clone());
     sort_moves(board, &mut moves, info, ply, tt_move.as_ref());
 
     let mut best_score = -INFINITY;
+    let mut best_move = None;
     let mut node_type = NodeType::UpperBound;
 
-    for (i, mv) in moves.iter().enumerate() {
+    for mv in moves {
         let mut new_board = board.clone();
         if !new_board.make_move(mv.from, mv.to) {
             continue;
         }
 
-        let score = if i >= 4 && depth >= 3 && !is_in_check && !is_capture(board, mv) {
-            let s = -negamax(&new_board, depth - 2, -beta, -alpha, info, ply + 1);
-            if s > alpha {
-                -negamax(&new_board, depth - 1, -beta, -alpha, info, ply + 1)
-            } else {
-                s
-            }
-        } else {
-            -negamax(&new_board, depth - 1, -beta, -alpha, info, ply + 1)
-        };
+        let score = -negamax(&new_board, depth - 1, -beta, -alpha, info, ply + 1);
 
         if score > best_score {
             best_score = score;
-            if score > alpha {
-                node_type = NodeType::Exact;
-                alpha = score;
-                
-                if !is_capture(board, mv) {
-                    info.update_killer_move(mv, ply);
-                    info.update_history_score(mv, depth);
-                }
+            best_move = Some(mv.clone());
+            alpha = alpha.max(score);
+            if alpha >= beta {
+                info.update_killer_move(&mv, ply);
+                info.update_history_score(&mv, depth);
+                node_type = NodeType::LowerBound;
+                break;
             }
-        }
-
-        if alpha >= beta {
-            node_type = NodeType::LowerBound;
-            break;
+            node_type = NodeType::Exact;
         }
     }
 
+    // Store score in TT from Red's perspective
+    let tt_score = if board.red_to_move { best_score } else { -best_score };
     info.tt.insert(hash, TTEntry {
         depth,
-        score: best_score,
+        score: tt_score,
         node_type,
-        best_move: moves.first().cloned(),
+        best_move,
     });
 
     best_score
@@ -233,7 +246,8 @@ fn negamax(board: &Board, depth: i32, mut alpha: i32, mut beta: i32, info: &mut 
 fn quiescence_search(board: &Board, mut alpha: i32, beta: i32, info: &mut SearchInfo) -> i32 {
     info.nodes += 1;
 
-    let stand_pat = evaluate_position(board);
+    let eval = evaluate_position(board);
+    let stand_pat = if board.red_to_move { eval } else { -eval };
     
     if stand_pat >= beta {
         return beta;
@@ -269,29 +283,35 @@ fn sort_moves(board: &Board, moves: &mut Vec<Move>, info: &SearchInfo, ply: usiz
         .map(|(i, mv)| {
             let mut score = 0;
             
+            // Prioritize transposition table move
             if let Some(tt_mv) = tt_move {
                 if mv == tt_mv {
                     score += 20000;
                 }
             }
 
+            // Score captures using MVV-LVA
             if let Some((_, victim_piece)) = board.squares[mv.to.0][mv.to.1].piece {
                 if let Some((_, attacker_piece)) = board.squares[mv.from.0][mv.from.1].piece {
                     score += MVV_LVA_SCORES[get_piece_value(victim_piece)][get_piece_value(attacker_piece)];
                 }
             }
 
-            if let Some(killer1) = &info.killer_moves[ply].moves[0] {
-                if mv == killer1 {
-                    score += 10000;
+            // Score killer moves
+            if ply < MAX_PLY {
+                if let Some(killer1) = &info.killer_moves[ply].moves[0] {
+                    if mv == killer1 {
+                        score += 10000;
+                    }
                 }
-            }
-            if let Some(killer2) = &info.killer_moves[ply].moves[1] {
-                if mv == killer2 {
-                    score += 9000;
+                if let Some(killer2) = &info.killer_moves[ply].moves[1] {
+                    if mv == killer2 {
+                        score += 9000;
+                    }
                 }
             }
 
+            // Score history moves
             let from_idx = mv.from.0 * 9 + mv.from.1;
             let to_idx = mv.to.0 * 9 + mv.to.1;
             score += info.history_table[from_idx][to_idx];
