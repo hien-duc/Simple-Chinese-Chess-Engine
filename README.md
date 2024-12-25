@@ -1,4 +1,4 @@
-# Chess Engine
+# Xiangqi Engine
 
 A powerful Chinese Chess (Xiangqi) engine written in Rust, featuring:
 - Alpha-beta pruning with negamax search
