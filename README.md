@@ -29,7 +29,7 @@ The compiled binary will be in `target/release/chess_engine`
 
 ## Download
 
-You can download pre-built binaries from the [Releases](https://github.com/hien-duc/chess_engine/releases/tag/0.1.0) page.
+You can download pre-built binaries from the [Releases](https://github.com/hienduc/chess_engine/releases) page.
 
 ## Usage
 
