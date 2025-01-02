@@ -1,4 +1,4 @@
-use std::fmt;
+// use std::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Piece {
@@ -100,12 +100,10 @@ impl Board {
 
         // parse active color
         board.red_to_move = match parts[1] {
-            "r" | "w" => true,
+            "w" | "r" => true,
             "b" => false,
-            _ => return Err(format!("Invalid active color in FEN: {}", parts[1])),
+            _ => return Err("Invalid active color in FEN".to_string()),
         };
-
-        println!("Active color from FEN: {}", if board.red_to_move { "Red" } else { "Black" });
 
         // parse halfmove clock
         if let Ok(halfmove) = parts[4].parse() {
@@ -129,20 +127,20 @@ impl Board {
         self.squares = [[Square { piece: None }; 9]; 10];
         
         // set up red pieces (bottom side)
-        // back rank (rank 0)
-        self.squares[0][0].piece = Some((Color::Red, Piece::Chariot));
-        self.squares[0][1].piece = Some((Color::Red, Piece::Horse));
-        self.squares[0][2].piece = Some((Color::Red, Piece::Elephant));
-        self.squares[0][3].piece = Some((Color::Red, Piece::Advisor));
-        self.squares[0][4].piece = Some((Color::Red, Piece::General));
-        self.squares[0][5].piece = Some((Color::Red, Piece::Advisor));
-        self.squares[0][6].piece = Some((Color::Red, Piece::Elephant));
-        self.squares[0][7].piece = Some((Color::Red, Piece::Horse));
-        self.squares[0][8].piece = Some((Color::Red, Piece::Chariot));
+        // back rank (rank 9)
+        self.squares[9][0].piece = Some((Color::Red, Piece::Chariot));
+        self.squares[9][1].piece = Some((Color::Red, Piece::Horse));
+        self.squares[9][2].piece = Some((Color::Red, Piece::Elephant));
+        self.squares[9][3].piece = Some((Color::Red, Piece::Advisor));
+        self.squares[9][4].piece = Some((Color::Red, Piece::General));
+        self.squares[9][5].piece = Some((Color::Red, Piece::Advisor));
+        self.squares[9][6].piece = Some((Color::Red, Piece::Elephant));
+        self.squares[9][7].piece = Some((Color::Red, Piece::Horse));
+        self.squares[9][8].piece = Some((Color::Red, Piece::Chariot));
         
-        // cannons (rank 2)
-        self.squares[2][1].piece = Some((Color::Red, Piece::Cannon));
-        self.squares[2][7].piece = Some((Color::Red, Piece::Cannon));
+        // cannons (rank 7)
+        self.squares[7][1].piece = Some((Color::Red, Piece::Cannon));
+        self.squares[7][7].piece = Some((Color::Red, Piece::Cannon));
         
         // soldiers (rank 3)
         self.squares[3][0].piece = Some((Color::Red, Piece::Soldier));
@@ -152,20 +150,20 @@ impl Board {
         self.squares[3][8].piece = Some((Color::Red, Piece::Soldier));
 
         // set up black pieces (top side)
-        // back rank (rank 9)
-        self.squares[9][0].piece = Some((Color::Black, Piece::Chariot));
-        self.squares[9][1].piece = Some((Color::Black, Piece::Horse));
-        self.squares[9][2].piece = Some((Color::Black, Piece::Elephant));
-        self.squares[9][3].piece = Some((Color::Black, Piece::Advisor));
-        self.squares[9][4].piece = Some((Color::Black, Piece::General));
-        self.squares[9][5].piece = Some((Color::Black, Piece::Advisor));
-        self.squares[9][6].piece = Some((Color::Black, Piece::Elephant));
-        self.squares[9][7].piece = Some((Color::Black, Piece::Horse));
-        self.squares[9][8].piece = Some((Color::Black, Piece::Chariot));
+        // back rank (rank 0)
+        self.squares[0][0].piece = Some((Color::Black, Piece::Chariot));
+        self.squares[0][1].piece = Some((Color::Black, Piece::Horse));
+        self.squares[0][2].piece = Some((Color::Black, Piece::Elephant));
+        self.squares[0][3].piece = Some((Color::Black, Piece::Advisor));
+        self.squares[0][4].piece = Some((Color::Black, Piece::General));
+        self.squares[0][5].piece = Some((Color::Black, Piece::Advisor));
+        self.squares[0][6].piece = Some((Color::Black, Piece::Elephant));
+        self.squares[0][7].piece = Some((Color::Black, Piece::Horse));
+        self.squares[0][8].piece = Some((Color::Black, Piece::Chariot));
         
-        // cannons (rank 7)
-        self.squares[7][1].piece = Some((Color::Black, Piece::Cannon));
-        self.squares[7][7].piece = Some((Color::Black, Piece::Cannon));
+        // cannons (rank 2)
+        self.squares[2][1].piece = Some((Color::Black, Piece::Cannon));
+        self.squares[2][7].piece = Some((Color::Black, Piece::Cannon));
         
         // soldiers (rank 6)
         self.squares[6][0].piece = Some((Color::Black, Piece::Soldier));
@@ -180,37 +178,95 @@ impl Board {
         self.fullmove_number = 1;
     }
 
+    pub fn is_flying_general(&self) -> bool {
+        let mut red_general_pos = None;
+        let mut black_general_pos = None;
+
+        // Find both generals
+        for rank in 0..10 {
+            for file in 3..6 {  // Generals can only be in these files
+                if let Some((color, piece)) = self.squares[rank][file].piece {
+                    if piece == Piece::General {
+                        if color == Color::Red {
+                            red_general_pos = Some((rank, file));
+                        } else {
+                            black_general_pos = Some((rank, file));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check if generals are on the same file
+        if let (Some((red_rank, red_file)), Some((black_rank, black_file))) = (red_general_pos, black_general_pos) {
+            if red_file == black_file {
+                // Check if there are any pieces between them
+                let (start_rank, end_rank) = if red_rank < black_rank {
+                    (red_rank + 1, black_rank)
+                } else {
+                    (black_rank + 1, red_rank)
+                };
+
+                for rank in start_rank..end_rank {
+                    if self.squares[rank][red_file].piece.is_some() {
+                        return false;  // There's a piece between them
+                    }
+                }
+                return true;  // Generals are facing each other with no pieces between
+            }
+        }
+        false
+    }
+
     pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize)) -> bool {
-        // Validate move coordinates
-        if from.0 >= 10 || from.1 >= 9 || to.0 >= 10 || to.1 >= 9 {
+        // Validate that the move is for the correct side
+        if let Some((piece_color, _)) = self.squares[from.0][from.1].piece {
+            if (piece_color == Color::Red) != self.red_to_move {
+                return false;
+            }
+        } else {
             return false;
         }
 
-        // Check if there is a piece at the source square
-        if let Some((color, _)) = self.squares[from.0][from.1].piece {
-            // Check if it's the correct side's turn
-            if (color == Color::Red) != self.red_to_move {
-                return false;
-            }
+        // Store the current state
+        let captured_piece = self.squares[to.0][to.1].piece;
+        let moving_piece = self.squares[from.0][from.1].piece;
 
-            // Check if destination has a piece of the same color
-            if let Some((dest_color, _)) = self.squares[to.0][to.1].piece {
-                if color == dest_color {
-                    return false;
-                }
-            }
+        // Make the move
+        self.squares[to.0][to.1].piece = self.squares[from.0][from.1].piece;
+        self.squares[from.0][from.1].piece = None;
 
-            // Make the move
-            self.squares[to.0][to.1].piece = self.squares[from.0][from.1].piece;
-            self.squares[from.0][from.1].piece = None;
-
-            // Switch turns
-            self.red_to_move = !self.red_to_move;
-            
-            true
-        } else {
-            false
+        // Check if the move results in flying general
+        if self.is_flying_general() {
+            // Undo the move if it creates a flying general situation
+            self.squares[from.0][from.1].piece = moving_piece;
+            self.squares[to.0][to.1].piece = captured_piece;
+            return false;
         }
+
+        // Check if the move puts the moving side's general in check
+        let is_in_check = self.is_in_check(if self.red_to_move { Color::Red } else { Color::Black });
+
+        // If the move results in check to the moving side's general, undo it
+        if is_in_check {
+            self.squares[from.0][from.1].piece = moving_piece;
+            self.squares[to.0][to.1].piece = captured_piece;
+            return false;
+        }
+
+        // Update game state
+        self.red_to_move = !self.red_to_move;
+        if !self.red_to_move {
+            self.fullmove_number += 1;
+        }
+
+        if captured_piece.is_some() {
+            self.halfmove_clock = 0;
+        } else {
+            self.halfmove_clock += 1;
+        }
+
+        true
     }
 
     // Check if a side is in check
@@ -254,59 +310,64 @@ impl Board {
     }
 }
 
-impl fmt::Display for Board {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "   ┌────────────────────────────┐")?;
+// impl fmt::Display for Board {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         writeln!(f, "   ┌────────────────────────────┐")?;
 
-        for rank in (0..10).rev() {  
-            write!(f, " {} │", rank)?;
+//         for rank in 0..10 {
+//             if rank == 0 {
+//                 write!(f, " 9 │")?;
+//             } else {
+//                 write!(f, " {} │", 9 - rank)?;
+//             }
 
-            for file in 0..9 {
-                let piece_str = match self.squares[rank][file].piece {
-                    Some((Color::Red, piece)) => match piece {
-                        Piece::General => " 帅",
-                        Piece::Advisor => " 仕",
-                        Piece::Elephant => " 相",
-                        Piece::Horse => " 马",
-                        Piece::Chariot => " 车",
-                        Piece::Cannon => " 炮",
-                        Piece::Soldier => " 兵",
-                    },
-                    Some((Color::Black, piece)) => match piece {
-                        Piece::General => " 將",
-                        Piece::Advisor => " 士",
-                        Piece::Elephant => " 象",
-                        Piece::Horse => " 馬",
-                        Piece::Chariot => " 車",
-                        Piece::Cannon => " 砲",
-                        Piece::Soldier => " 卒",
-                    },
-                    None => "  ·",
-                };
+//             for file in 0..9 {
+//                 let piece_str = match self.squares[rank][file].piece {
+//                     Some((Color::Red, piece)) => match piece {
+//                         Piece::General => " 帅",
+//                         Piece::Advisor => " 仕",
+//                         Piece::Elephant => " 相",
+//                         Piece::Horse => " 马",
+//                         Piece::Chariot => " 车",
+//                         Piece::Cannon => " 炮",
+//                         Piece::Soldier => " 兵",
+//                     },
+//                     Some((Color::Black, piece)) => match piece {
+//                         Piece::General => " 將",
+//                         Piece::Advisor => " 士",
+//                         Piece::Elephant => " 象",
+//                         Piece::Horse => " 馬",
+//                         Piece::Chariot => " 車",
+//                         Piece::Cannon => " 砲",
+//                         Piece::Soldier => " 卒",
+//                     },
+//                     None => "  ·",
+//                 };
 
-                write!(f, "{}", piece_str)?;
-            }
+//                 write!(f, "{}", piece_str)?;
+//             }
 
-            writeln!(f, " │")?;
+//             writeln!(f, " │")?;
 
-            if rank == 5 {  
-                writeln!(f, "   ├─────────楚 河 汉 界────────┤")?;
-            }
-        }
+//             if rank == 4 {
+//                 writeln!(f, "   ├─────────楚 河 汉 界────────┤")?;
+//             }
+//         }
 
-        writeln!(f, "   └────────────────────────────┘")?;
-        writeln!(f, "      a  b  c  d  e  f  g  h  i")?;
+//         writeln!(f, "   └────────────────────────────┘")?;
 
-        // show turn
-        if self.red_to_move {
-            writeln!(f, "\nRed (下) to move")?;
-        } else {
-            writeln!(f, "\nBlack (上) to move")?;
-        }
+//         writeln!(f, "      a  b  c  d  e  f  g  h  i")?;
 
-        Ok(())
-    }
-}
+//         // show turn
+//         if self.red_to_move {
+//             writeln!(f, "\nRed (下) to move")?;
+//         } else {
+//             writeln!(f, "\nBlack (上) to move")?;
+//         }
+
+//         Ok(())
+//     }
+// }
 
 // Generate moves for a piece
 fn generate_piece_moves(board: &Board, pos: (usize, usize)) -> Vec<(usize, usize)> {

@@ -13,13 +13,14 @@ impl Move {
     }
 
     pub fn to_uci(&self) -> String {
-        // Convert internal coordinates to UCI format
+        // convert internal coordinates to UCI format
+        // for black's perspective, we need to flip the coordinates
         format!(
             "{}{}{}{}",
             (b'a' + self.from.1 as u8) as char,
-            (b'0' + self.from.0 as u8) as char,  // Use internal coordinates directly
+            (b'9' - self.from.0 as u8) as char,
             (b'a' + self.to.1 as u8) as char,
-            (b'0' + self.to.0 as u8) as char,    // Use internal coordinates directly
+            (b'9' - self.to.0 as u8) as char,
         )
     }
 }
@@ -34,22 +35,13 @@ pub fn generate_legal_moves(board: &Board) -> Vec<Move> {
     let mut moves = Vec::new();
     let color = if board.red_to_move { Color::Red } else { Color::Black };
 
-    // Generate moves for the side to move
+    // generate moves based on the current side to move
     for rank in 0..10 {
         for file in 0..9 {
             if let Some((piece_color, _)) = board.squares[rank][file].piece {
                 if piece_color == color {
-                    let from = (rank, file);
-                    // Only generate moves for pieces of the current side
-                    let mut piece_moves = generate_piece_moves(board, from);
-                    
-                    // Filter out moves that would leave the king in check
-                    piece_moves.retain(|mv| {
-                        let mut test_board = board.clone();
-                        test_board.make_move(mv.from, mv.to)
-                    });
-                    
-                    moves.extend(piece_moves);
+                    let mut piece_moves = generate_piece_moves(board, (rank, file));
+                    moves.append(&mut piece_moves);
                 }
             }
         }
@@ -292,26 +284,28 @@ fn generate_soldier_moves(board: &Board, pos: (usize, usize), color: Color, move
 
     match color {
         Color::Red => {
-            if rank < 9 { possible_moves.push((rank + 1, file)); }  // Move forward
-            if rank > 4 {  // Crossed the river
-                if file > 0 { possible_moves.push((rank, file - 1)); }  // Move left
-                if file < 8 { possible_moves.push((rank, file + 1)); }  // Move right
+            if rank > 0 { possible_moves.push((rank - 1, file)); }
+            if rank < 5 {
+                if file > 0 { possible_moves.push((rank, file - 1)); }
+                if file < 8 { possible_moves.push((rank, file + 1)); }
             }
         }
         Color::Black => {
-            if rank > 0 { possible_moves.push((rank - 1, file)); }  // Move forward
-            if rank < 5 {  // Crossed the river
-                if file > 0 { possible_moves.push((rank, file - 1)); }  // Move left
-                if file < 8 { possible_moves.push((rank, file + 1)); }  // Move right
+            if rank < 9 { possible_moves.push((rank + 1, file)); }
+            if rank > 4 {
+                if file > 0 { possible_moves.push((rank, file - 1)); }
+                if file < 8 { possible_moves.push((rank, file + 1)); }
             }
         }
     }
 
-    for &new_pos in &possible_moves {
-        match board.squares[new_pos.0][new_pos.1].piece {
-            None => moves.push(Move::new(pos, new_pos)),
-            Some((piece_color, _)) if piece_color != color => moves.push(Move::new(pos, new_pos)),
-            _ => {}
+    for &(new_rank, new_file) in &possible_moves {
+        if let Some((piece_color, _)) = board.squares[new_rank][new_file].piece {
+            if piece_color != color {
+                moves.push(Move::new(pos, (new_rank, new_file)));
+            }
+        } else {
+            moves.push(Move::new(pos, (new_rank, new_file)));
         }
     }
 }

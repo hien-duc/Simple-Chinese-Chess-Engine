@@ -37,14 +37,14 @@ impl UCIEngine {
                             if tokens.len() > 9 && tokens[8] == "moves" {
                                 println!("Applying moves: {:?}", &tokens[9..]);
                                 for move_str in tokens[9..].iter() {
-                                    // Parse UCI coordinates (a-i for files, 0-9 for ranks)
-                                    let from_file = (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize;
-                                    let from_rank = 9 - (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize;  // Flip rank
-                                    let to_file = (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize;
-                                    let to_rank = 9 - (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize;    // Flip rank
-
-                                    let from = (from_rank, from_file);
-                                    let to = (to_rank, to_file);
+                                    let from = (
+                                        (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize,
+                                        (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize,
+                                    );
+                                    let to = (
+                                        (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize,
+                                        (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize,
+                                    );
                                     self.board.make_move(from, to);
                                 }
                             }
@@ -64,14 +64,14 @@ impl UCIEngine {
                     println!("Applying moves: {:?}", &tokens[3..]);
                     // starting with moves if haved
                     for move_str in tokens[3..].iter() {
-                        // Parse UCI coordinates (a-i for files, 0-9 for ranks)
-                        let from_file = (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize;
-                        let from_rank = (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize;  // Don't flip for initial position
-                        let to_file = (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize;
-                        let to_rank = (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize;    // Don't flip for initial position
-
-                        let from = (from_rank, from_file);
-                        let to = (to_rank, to_file);
+                        let from = (
+                            (move_str.chars().nth(1).unwrap() as u8 - b'0') as usize,
+                            (move_str.chars().nth(0).unwrap() as u8 - b'a') as usize,
+                        );
+                        let to = (
+                            (move_str.chars().nth(3).unwrap() as u8 - b'0') as usize,
+                            (move_str.chars().nth(2).unwrap() as u8 - b'a') as usize,
+                        );
                         if !self.board.make_move(from, to) {
                             println!("Error: Invalid move {}", move_str);
                             break;
@@ -79,8 +79,8 @@ impl UCIEngine {
                     }
                 }
                 // show current board
-                println!("\nCurrent position:");
-                println!("{}", self.board);
+                //println!("\nCurrent position:");
+                // println!("{}", self.board);
             }
             _ => {
                 println!("Error: Unknown position subcommand");
@@ -143,11 +143,11 @@ impl UCIEngine {
                         self.running = false;
                         break;
                     }
-                    "d" | "display" => {
-                        println!("\nCurrent position:");
-                        println!("{}", self.board);
-                        stdout.flush().unwrap();
-                    }
+                    // "d" | "display" => {
+                    //     println!("\nCurrent position:");
+                    //     println!("{}", self.board);
+                    //     stdout.flush().unwrap();
+                    // }
                     _ => {
                         println!("Unknown command: {}", tokens[0]);
                         println!("Available commands:");
@@ -156,7 +156,7 @@ impl UCIEngine {
                         println!("  ucinewgame - Reset the engine state for a new game");
                         println!("  position   - Set up a position");
                         println!("  go         - Start calculating");
-                        println!("  d          - Display current position");
+                        // println!("  d          - Display current position");
                         println!("  quit       - Exit the engine");
                         stdout.flush().unwrap();
                     }
