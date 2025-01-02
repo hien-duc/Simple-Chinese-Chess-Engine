@@ -17,7 +17,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 2. Clone the repository:
 ```bash
 git clone https://github.com/hienduc/chess_engine.git
-cd xiangqi-engine
+cd chess_engine
 ```
 
 3. Build the project:
