@@ -1,4 +1,4 @@
-# Simple_Chinese_Chess_Enginer
+# Simple Chinese Chess Engine
 
 A powerful Chinese Chess (Xiangqi) engine written in Rust, featuring:
 - Alpha-beta pruning with negamax search
